@@ -13,6 +13,14 @@ class PricingService:
         # Fixed travel time charge (hours); e.g., 0.5 = 30 minutes
         self.travel_time_hours = float(os.getenv('TRAVEL_TIME_HOURS', 0.5))
         
+        # Optional calendar-based uplift and messaging options (disabled by default)
+        self.calendar_uplift_enabled = os.getenv('CALENDAR_UPLIFT_ENABLED', 'False').lower() == 'true'
+        self.calendar_uplift_amount = int(os.getenv('CALENDAR_UPLIFT_AMOUNT', 25))
+        # Busy week threshold; if weekly bookings >= threshold, apply uplift when enabled
+        self.calendar_busy_week_threshold = int(os.getenv('CALENDAR_BUSY_WEEK_THRESHOLD', 5))
+        # Present a rate range instead of a single exact number, off by default
+        self.show_rate_range = os.getenv('SHOW_RATE_RANGE', 'False').lower() == 'true'
+        
         # Pricing tiers based on rooms and stairs
         self.pricing_tiers = {
             # 1-2 rooms, no stairs or 1-2 floors
@@ -68,6 +76,10 @@ class PricingService:
         
         # Get base rate
         base_rate = self.pricing_tiers[pickup_tier][weekly_range]
+        
+        # Optional: apply calendar-based uplift for busy weeks
+        if self.calendar_uplift_enabled and weekly_bookings >= self.calendar_busy_week_threshold:
+            base_rate += self.calendar_uplift_amount
         
         return base_rate, movers_needed
     
@@ -127,7 +139,7 @@ class PricingService:
         # Total estimate
         total_estimate = labor_cost + mileage_cost + packing_cost
         
-        return {
+        estimate = {
             'move_type': 'local',
             'base_rate': base_rate,
             'movers_needed': movers_needed,
@@ -141,6 +153,14 @@ class PricingService:
             'total_distance': round(total_distance, 2),
             'requires_manual_quote': False
         }
+        # If configured, include a presentation range (e.g., +$25 headroom)
+        if self.show_rate_range:
+            try:
+                estimate['rate_range_low'] = int(base_rate)
+                estimate['rate_range_high'] = int(base_rate + max(0, self.calendar_uplift_amount))
+            except Exception:
+                pass
+        return estimate
     
     def _parse_stairs(self, stairs_input):
         """Parse stairs/elevator input"""
@@ -156,7 +176,11 @@ class PricingService:
         
         message = f"Based on the information provided, here's your estimate: "
         message += f"We'll need {estimate['movers_needed']} movers and a truck. "
-        message += f"The hourly rate is ${estimate['base_rate']} per hour. "
+        # Show range vs exact rate depending on configuration
+        if self.show_rate_range and 'rate_range_low' in estimate and 'rate_range_high' in estimate:
+            message += f"The hourly rate is in the range ${estimate['rate_range_low']}–${estimate['rate_range_high']} per hour. "
+        else:
+            message += f"The hourly rate is ${estimate['base_rate']} per hour. "
         message += f"We estimate approximately {estimate['estimated_hours']} hours for your move. "
         # Mention travel time charge if present
         try:
