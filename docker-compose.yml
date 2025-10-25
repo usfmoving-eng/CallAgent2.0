@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  callagent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: callagent-app
+    ports:
+      - "80:5000"  # Map host port 80 to container port 5000
+    environment:
+      # Flask Configuration
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-False}
+      - PORT=5000
+      
+      # Twilio Configuration
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      
+      # Google APIs
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - GOOGLE_SHEETS_CREDS=${GOOGLE_SHEETS_CREDS}
+      - BOOKING_SHEET_ID=${BOOKING_SHEET_ID}
+      
+      # OpenAI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Email Configuration
+      - EMAIL_ADDRESS=${EMAIL_ADDRESS}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - SMTP_SERVER=${SMTP_SERVER:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - MANAGER_EMAIL=${MANAGER_EMAIL}
+      
+      # Company Information
+      - COMPANY_NAME=${COMPANY_NAME:-USF Moving Company}
+      - COMPANY_PHONE=${COMPANY_PHONE:-(281) 743-4503}
+      - OFFICE_ADDRESS=${OFFICE_ADDRESS:-2800 Rolido Dr Apt 238, Houston, TX 77063}
+      - WEBSITE=${WEBSITE:-https://www.usfhoustonmoving.com/}
+      
+      # Feature Flags
+      - ENABLE_CALL_RECORDING=${ENABLE_CALL_RECORDING:-True}
+      - ENABLE_EMAIL_NOTIFICATIONS=${ENABLE_EMAIL_NOTIFICATIONS:-True}
+      - ENABLE_SMS_NOTIFICATIONS=${ENABLE_SMS_NOTIFICATIONS:-True}
+      
+      # Pricing Configuration
+      - MILEAGE_FREE_RADIUS=${MILEAGE_FREE_RADIUS:-20}
+      - MILEAGE_RATE=${MILEAGE_RATE:-1.0}
+      - LONG_DISTANCE_PHONE=${LONG_DISTANCE_PHONE:-(281) 743-4503}
+    
+    volumes:
+      - ./logs:/app/logs  # Persist logs
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    networks:
+      - callagent-network
+
+networks:
+  callagent-network:
+    driver: bridge

@@ -27,6 +27,12 @@ class Config:
     TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
     TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
     
+    # Twilio Speech Recognition - Best Quality Settings
+    TWILIO_SPEECH_LANGUAGE = os.getenv('TWILIO_SPEECH_LANGUAGE', 'en-US')
+    TWILIO_SPEECH_MODEL = os.getenv('TWILIO_SPEECH_MODEL', 'numbers_and_commands')  # Best for conversations
+    TWILIO_SPEECH_ENHANCED = True  # Always use enhanced ASR for best accuracy
+    TWILIO_SPEECH_PROFANITY_FILTER = False  # Don't filter legitimate words
+    
     # Google APIs
     GOOGLE_MAPS_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
     GOOGLE_SHEETS_CREDS = os.getenv('GOOGLE_SHEETS_CREDS')
@@ -53,9 +59,10 @@ class Config:
     ENABLE_EMAIL_NOTIFICATIONS = os.getenv('ENABLE_EMAIL_NOTIFICATIONS', 'True') == 'True'
     ENABLE_BACKLINK_AUTOMATION = os.getenv('ENABLE_BACKLINK_AUTOMATION', 'False') == 'True'
     
-    # Voice Settings
+    # Voice Settings - Neural voices for better quality
     VOICE_GENDER = os.getenv('VOICE_GENDER', 'female')
     VOICE_NAME = os.getenv('VOICE_NAME', 'Polly.Joanna')
+    VOICE_NEURAL = os.getenv('VOICE_NEURAL', 'Polly.Joanna-Neural')  # Best quality neural voice
     
     # Rate Limiting
     MAX_OUTBOUND_CALLS_PER_DAY = int(os.getenv('MAX_OUTBOUND_CALLS_PER_DAY', 50))

@@ -1,5 +1,4 @@
 # OpenAI integration
-import openai
 import os
 from dotenv import load_dotenv
 
@@ -7,16 +6,16 @@ load_dotenv()
 
 class AIService:
     def __init__(self):
-        openai.api_key = os.getenv('OPENAI_API_KEY')
+        self.api_key = os.getenv('OPENAI_API_KEY')
         self.model = "gpt-4"
     
     def detect_intent(self, user_input):
         """Detect user intent from speech"""
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=openai.api_key)
+            import openai
+            openai.api_key = self.api_key
             
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[
                     {
@@ -42,6 +41,9 @@ class AIService:
     def generate_response(self, user_input, context="general"):
         """Generate contextual response for unseen inputs"""
         try:
+            import openai
+            openai.api_key = self.api_key
+            
             system_prompts = {
                 "greeting": "You are a friendly moving company receptionist. Respond warmly and professionally to the customer's greeting, then guide them toward getting an estimate or booking. Keep responses under 50 words.",
                 "general": "You are a helpful moving company assistant. Provide a brief, professional response that acknowledges the customer and guides them back to booking or getting an estimate. Keep responses under 50 words.",
@@ -50,10 +52,7 @@ class AIService:
             
             system_prompt = system_prompts.get(context, system_prompts["general"])
             
-            from openai import OpenAI
-            client = OpenAI(api_key=openai.api_key)
-            
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[
                     {
@@ -78,6 +77,9 @@ class AIService:
     def generate_email_content(self, booking_data):
         """Generate personalized email confirmation"""
         try:
+            import openai
+            openai.api_key = self.api_key
+            
             prompt = f"""
             Generate a professional email confirmation for a moving booking with the following details:
             
@@ -98,10 +100,7 @@ class AIService:
             Keep it concise and professional.
             """
             
-            from openai import OpenAI
-            client = OpenAI(api_key=openai.api_key)
-            
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[
                     {
@@ -152,10 +151,10 @@ https://www.usfhoustonmoving.com/
     def classify_move_type(self, user_input):
         """Classify the type of move from user input"""
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=openai.api_key)
+            import openai
+            openai.api_key = self.api_key
             
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[
                     {
@@ -181,10 +180,10 @@ https://www.usfhoustonmoving.com/
     def extract_name(self, user_input):
         """Extract person's name from speech input"""
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=openai.api_key)
+            import openai
+            openai.api_key = self.api_key
             
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[
                     {

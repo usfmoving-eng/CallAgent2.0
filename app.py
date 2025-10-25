@@ -48,28 +48,33 @@ conv_handlers.call_sessions = call_sessions
 est_handlers.call_sessions = call_sessions
 
 # --------------------------
-# Twilio Speech configuration helper
+# Twilio Speech configuration helper - BEST ACCURACY SETTINGS
 # --------------------------
 SPEECH_LANGUAGE = os.getenv('TWILIO_SPEECH_LANGUAGE', 'en-US')
-SPEECH_ENHANCED = os.getenv('TWILIO_SPEECH_ENHANCED', 'true').lower() == 'true'
-SPEECH_MODEL = os.getenv('TWILIO_SPEECH_MODEL', 'phone_call')
+SPEECH_ENHANCED = True  # Always use enhanced model for best accuracy
+SPEECH_MODEL = os.getenv('TWILIO_SPEECH_MODEL', 'numbers_and_commands')  # Best for phone calls with names/addresses
+PROFANITY_FILTER = False  # Don't filter, we need all words
+VOICE_QUALITY = 'Polly.Joanna-Neural'  # Best quality neural voice (clearer, more natural)
 DEFAULT_HINTS = os.getenv(
     'TWILIO_SPEECH_HINTS',
-    'local,long distance,junk removal,in-home service,house,apartment,office,warehouse,yes,no,'
-    'morning,afternoon,evening,flexible,one,two,three,four,five,six,seven,eight,nine,zero,oh,o,zip,zip code,from,to'
+    'estimate,quote,booking,moving,local,long distance,junk removal,in-home service,house,apartment,office,warehouse,'
+    'yes,no,yeah,yep,nope,sure,okay,morning,afternoon,evening,flexible,am,pm,'
+    'one,two,three,four,five,six,seven,eight,nine,ten,zero,oh,o,'
+    'zip,zip code,from,to,pickup,dropoff,address,street,avenue,road,drive,boulevard,lane,'
+    'Houston,Texas,Dallas,Austin,San Antonio,furniture,boxes,stairs,elevator,bedroom,bathroom,studio'
 )
 
 def _make_gather(
     input_types='speech dtmf',
     action='/voice/process',
     method='POST',
-    timeout=4,
+    timeout=5,  # Increased from 4 to 5 seconds for better capture
     speech_timeout='auto',
     num_digits=None,
     action_on_empty=True,
     finish_on_key='0',
 ):
-    """Create a Twilio Gather with enhanced ASR and domain hints."""
+    """Create a Twilio Gather with BEST speech recognition settings."""
     kwargs = dict(
         input=input_types,
         action=action,
@@ -77,9 +82,10 @@ def _make_gather(
         timeout=timeout,
         speech_timeout=speech_timeout,
         language=SPEECH_LANGUAGE,
-        enhanced=SPEECH_ENHANCED,
-        speech_model=SPEECH_MODEL,
-        hints=DEFAULT_HINTS,
+        enhanced=SPEECH_ENHANCED,  # Always True for best accuracy
+        speech_model=SPEECH_MODEL,  # numbers_and_commands model
+        hints=DEFAULT_HINTS,  # Expanded hints for better recognition
+        profanity_filter=PROFANITY_FILTER,  # Don't filter words
         actionOnEmptyResult=action_on_empty
     )
     if num_digits is not None:
@@ -410,7 +416,18 @@ def check_availability2():
 
 def handle_greeting(call_sid, speech_result, response):
     """Handle initial greeting and determine intent"""
-    session = call_sessions[call_sid]
+    session = call_sessions.get(call_sid)
+    
+    # If session doesn't exist, reinitialize it
+    if not session:
+        logger.warning(f"Session {call_sid} not found, reinitializing")
+        call_sessions[call_sid] = {
+            'phone': 'unknown',
+            'step': 'greeting',
+            'data': {},
+            'customer': None
+        }
+        session = call_sessions[call_sid]
     
     # Use AI to understand intent
     intent = ai_service.detect_intent(speech_result)
