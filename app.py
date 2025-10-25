@@ -20,6 +20,16 @@ from utils.logger import setup_logger
 app = Flask(__name__)
 logger = setup_logger()
 
+# Simple root route to avoid 404s on GET /
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        'service': 'USF Moving AI Agent',
+        'status': 'running',
+        'health': '/health',
+        'voice_inbound': '/voice/inbound'
+    })
+
 # Initialize services
 booking_service = BookingService()
 pricing_service = PricingService()
