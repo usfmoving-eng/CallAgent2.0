@@ -356,6 +356,13 @@ class ValidationService:
     def validate_yes_no(self, speech_text):
         """Validate yes/no response"""
         text = speech_text.lower().strip()
+        # Accept common DTMF inputs: 1 = yes, 2 = no
+        # Handle exact digit responses or phrases like 'press 1'
+        import re as _re
+        if text in {'1', 'one'} or _re.search(r'\bpress\s*1\b', text):
+            return 'yes'
+        if text in {'2', 'two'} or _re.search(r'\bpress\s*2\b', text):
+            return 'no'
         
         yes_keywords = ['yes', 'yeah', 'yep', 'yup', 'ya', 'sure', 'okay', 'ok', 'correct', 'right', 'affirmative']
         no_keywords = ['no', 'nope', 'nah', 'not', 'incorrect', 'wrong', 'negative']
