@@ -33,6 +33,9 @@ DEFAULT_HINTS = os.getenv(
     'morning,afternoon,evening,flexible,one,two,three,four,five,six,seven,eight,nine,zero,oh,o,zip,zip code,from,to'
 )
 
+# Global barge-in toggle (default false)
+BARGE_IN_ENABLED = os.getenv('BARGE_IN_ENABLED', 'false').lower() == 'true'
+
 def _make_gather(input_types='speech', action='/voice/process', method='POST', timeout=5, speech_timeout='auto', num_digits=None, action_on_empty=True):
     kwargs = dict(
         input=input_types,
@@ -44,7 +47,8 @@ def _make_gather(input_types='speech', action='/voice/process', method='POST', t
         enhanced=SPEECH_ENHANCED,
         speech_model=SPEECH_MODEL,
         hints=DEFAULT_HINTS,
-        actionOnEmptyResult=action_on_empty
+        actionOnEmptyResult=action_on_empty,
+        bargeIn=BARGE_IN_ENABLED
     )
     if num_digits is not None:
         kwargs['num_digits'] = num_digits
@@ -164,6 +168,16 @@ def confirm_booking(call_sid, session, speech_result, response):
                 data['confirmation_sent'] = 'Yes'
             except Exception as e:
                 logger.error(f"Error sending manager email: {e}")
+                # Create Google Calendar event for confirmed booking (if configured)
+                try:
+                    created = calendar_service.create_event(data)
+                    if created and created.get('id'):
+                        data['calendar_event_id'] = created.get('id')
+                        logger.info(f"Created calendar event {created.get('id')} for booking {booking_id}")
+                    else:
+                        logger.info(f"Calendar event not created or no id returned for booking {booking_id}")
+                except Exception as e:
+                    logger.error(f"Error creating calendar event for booking {booking_id}: {e}")
             
             # Success message
             # Compute window phrase for confirmation (1-hour morning, 2-hour afternoon)
@@ -405,7 +419,7 @@ def handle_confirm_phone_for_sms(call_sid, session, speech_result, response):
         except Exception as e:
             logger.error(f"Error resending SMS: {e}")
         session['step'] = 'confirm_sms_received'
-        gather = Gather(input='speech', action='/voice/process', method='POST', timeout=5, speech_timeout='auto', actionOnEmptyResult=True)
+        gather = Gather(input='speech', action='/voice/process', method='POST', timeout=5, speech_timeout='auto', actionOnEmptyResult=True, bargeIn=BARGE_IN_ENABLED)
         gather.say("I've resent the message. Did you receive it now?", voice='Polly.Joanna')
         response.append(gather)
         return str(response)

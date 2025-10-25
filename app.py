@@ -64,7 +64,8 @@ est_handlers.call_sessions = call_sessions
 # --------------------------
 SPEECH_LANGUAGE = os.getenv('TWILIO_SPEECH_LANGUAGE', 'en-US')
 SPEECH_ENHANCED = True  # Always use enhanced model for best accuracy
-SPEECH_MODEL = os.getenv('TWILIO_SPEECH_MODEL', 'numbers_and_commands')  # Best for phone calls with names/addresses
+# Use the general-purpose phone_call model for conversational speech recognition
+SPEECH_MODEL = os.getenv('TWILIO_SPEECH_MODEL', 'phone_call')
 PROFANITY_FILTER = False  # Don't filter, we need all words
 VOICE_QUALITY = 'Polly.Joanna-Neural'  # Best quality neural voice (clearer, more natural)
 DEFAULT_HINTS = os.getenv(
@@ -75,6 +76,9 @@ DEFAULT_HINTS = os.getenv(
     'zip,zip code,from,to,pickup,dropoff,address,street,avenue,road,drive,boulevard,lane,'
     'Houston,Texas,Dallas,Austin,San Antonio,furniture,boxes,stairs,elevator,bedroom,bathroom,studio'
 )
+
+# Global barge-in toggle: when False, agent will not be interrupted by user speech/DTMF during prompts
+BARGE_IN_ENABLED = os.getenv('BARGE_IN_ENABLED', 'false').lower() == 'true'
 
 def _make_gather(
     input_types='speech dtmf',
@@ -100,6 +104,8 @@ def _make_gather(
         profanity_filter=PROFANITY_FILTER,  # Don't filter words
         actionOnEmptyResult=action_on_empty
     )
+    # Respect barge-in configuration (default False per request)
+    kwargs['bargeIn'] = BARGE_IN_ENABLED
     if num_digits is not None:
         kwargs['num_digits'] = num_digits
     if finish_on_key is not None:
@@ -254,6 +260,15 @@ def process_speech():
     raw_digits = request.values.get('Digits') or ''
     raw_speech = request.values.get('SpeechResult') or ''
     
+    # Ensure a session exists to avoid KeyErrors if /voice/inbound wasn't called first
+    if call_sid not in call_sessions:
+        logger.warning(f"Session {call_sid} not found in /voice/process; initializing default session")
+        call_sessions[call_sid] = {
+            'phone': request.values.get('From') or 'unknown',
+            'step': 'greeting',
+            'data': {},
+            'customer': None
+        }
     session = call_sessions.get(call_sid, {})
     current_step = session.get('step', 'greeting')
 

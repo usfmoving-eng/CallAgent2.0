@@ -1,6 +1,10 @@
 # Availability checking
 from datetime import datetime, timedelta
 from services.booking_service import BookingService
+import os
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 class CalendarService:
     def __init__(self):
@@ -236,3 +240,79 @@ class CalendarService:
         message += ". Which of these works best for you?"
         
         return message
+
+    def create_event(self, booking_data):
+        """Create a Google Calendar event for a confirmed booking.
+
+        Requires environment variable GOOGLE_CALENDAR_ID and GOOGLE_SHEETS_CREDS (service account JSON).
+        Returns event dict on success or None on failure.
+        """
+        try:
+            calendar_id = os.getenv('GOOGLE_CALENDAR_ID')
+            creds_json = os.getenv('GOOGLE_SHEETS_CREDS')
+            if not calendar_id or not creds_json:
+                return None
+
+            creds_dict = json.loads(creds_json)
+            scopes = ['https://www.googleapis.com/auth/calendar']
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            service = build('calendar', 'v3', credentials=creds)
+
+            # Build event body
+            summary = f"USF Moving - {booking_data.get('name', 'Booking')}"
+            start_date = booking_data.get('move_date')
+            start_time = booking_data.get('move_time')
+            # Try to parse an ISO-like time; else default to 09:00
+            try:
+                # If move_time is 'morning'/'afternoon'/'evening' or 'Flexible', map to hours
+                mt = (start_time or '').lower()
+                if 'morning' in mt:
+                    hour = 9
+                elif 'afternoon' in mt:
+                    hour = 13
+                elif 'evening' in mt:
+                    hour = 16
+                elif mt == 'flexible' or not mt:
+                    hour = 9
+                else:
+                    # try parse '9 AM' or '13:00' styles
+                    try:
+                        from dateutil import parser
+                        dt = parser.parse(start_time)
+                        hour = dt.hour
+                    except Exception:
+                        # fallback
+                        hour = 9
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else datetime.utcnow()
+                start_dt = start_dt.replace(hour=hour, minute=0, second=0)
+            except Exception:
+                start_dt = datetime.utcnow()
+
+            # Estimate duration in hours; default 3
+            duration = float(booking_data.get('estimated_hours') or 3)
+            end_dt = start_dt + timedelta(hours=duration)
+
+            event = {
+                'summary': summary,
+                'description': f"Booking for {booking_data.get('name')} Phone: {booking_data.get('phone')}",
+                'start': {
+                    'dateTime': start_dt.isoformat(),
+                    'timeZone': os.getenv('TIMEZONE', 'UTC')
+                },
+                'end': {
+                    'dateTime': end_dt.isoformat(),
+                    'timeZone': os.getenv('TIMEZONE', 'UTC')
+                },
+                'attendees': [
+                    {'email': os.getenv('MANAGER_EMAIL')} if os.getenv('MANAGER_EMAIL') else {}
+                ],
+                'reminders': {
+                    'useDefault': True,
+                }
+            }
+
+            created = service.events().insert(calendarId=calendar_id, body=event).execute()
+            return created
+        except Exception as e:
+            print(f"Error creating calendar event: {e}")
+            return None

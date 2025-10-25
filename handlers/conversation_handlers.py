@@ -36,6 +36,9 @@ DEFAULT_HINTS = os.getenv(
     'morning,afternoon,evening,flexible,one,two,three,four,five,six,seven,eight,nine,zero,oh,o,zip,zip code,from,to'
 )
 
+# Global barge-in toggle (default false): when false, agent will not be interrupted by user during prompts
+BARGE_IN_ENABLED = os.getenv('BARGE_IN_ENABLED', 'false').lower() == 'true'
+
 # Global call sessions dictionary (will be imported from app.py)
 # This is just a placeholder - app.py will manage the actual sessions
 call_sessions = {}
@@ -58,7 +61,8 @@ def gather_speech(response, message, action='/voice/process'):
         speech_model=SPEECH_MODEL,
         hints=DEFAULT_HINTS,
         actionOnEmptyResult=True,
-        finishOnKey='0'
+        finishOnKey='0',
+        bargeIn=BARGE_IN_ENABLED
     )
     gather.say(message, voice='Polly.Joanna')
     response.append(gather)
