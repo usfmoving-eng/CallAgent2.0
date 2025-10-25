@@ -636,7 +636,10 @@ def continue_availability_check(call_sid, response):
                 except Exception:
                     pass
                 session['step'] = 'confirm_time'
-                message = f"Great! We have availability on {session['data'].get('move_date_formatted', availability['date'])} at {availability['time']}. Is that correct?"
+                message = (
+                    f"Great! We have availability on {session['data'].get('move_date_formatted', availability['date'])} at {availability['time']}. "
+                    "Is that correct? You can say yes or no, or press 1 for yes and 2 for no."
+                )
                 return gather_speech(response, message)
             else:
                 alternatives = availability.get('alternatives', [])
@@ -696,7 +699,10 @@ def handle_confirm_time(call_sid, speech_result, response):
         return gather_speech(response, message)
     else:
         session['step'] = 'confirm_time'
-        message = f"To confirm, your move time is {time_str} on {date_str}. Is that correct?"
+        message = (
+            f"To confirm, your move time is {time_str} on {date_str}. "
+            "Is that correct? You can say yes or no, or press 1 for yes and 2 for no."
+        )
         return gather_speech(response, message)
 
 def handle_special_items(call_sid, speech_result, response):

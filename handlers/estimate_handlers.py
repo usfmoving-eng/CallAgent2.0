@@ -484,7 +484,10 @@ def handle_alternative_selection(call_sid, session, speech_result, response):
 
         # Route to confirm_time to keep behavior consistent
         session['step'] = 'confirm_time'
-        message = f"Great! We can schedule your move for {date_str} at {selected['time']}. Is that correct?"
+        message = (
+            f"Great! We can schedule your move for {date_str} at {selected['time']}. "
+            "Is that correct? You can say yes or no, or press 1 for yes and 2 for no."
+        )
         gather = _make_gather(
             input_types='speech',
             action='/voice/process',
