@@ -15,6 +15,7 @@ from services.email_service import EmailService
 from services.distance_service import DistanceService
 from services.validation_service import ValidationService
 from services.ai_service import AIService
+from services.spam_service import SpamService
 from utils.logger import setup_logger
 
 app = Flask(__name__)
@@ -39,6 +40,7 @@ email_service = EmailService()
 distance_service = DistanceService()
 validation_service = ValidationService()
 ai_service = AIService()
+spam_service = SpamService()
 
 # Twilio client
 twilio_client = Client(
@@ -181,6 +183,36 @@ def handle_inbound_call():
     response = VoiceResponse()
     call_sid = request.values.get('CallSid')
     from_number = request.values.get('From')
+
+    # Record and evaluate spam heuristics before proceeding
+    try:
+        spam_service.record_call(from_number)
+        spam_eval = spam_service.evaluate_call(from_number)
+        if spam_eval.get('action') == 'block':
+            logger.info(f"Blocking call {call_sid} from {from_number} due to spam: {spam_eval.get('reason')}")
+            response.say("We are unable to take your call at the moment.", voice='Polly.Joanna')
+            response.hangup()
+            return str(response)
+        elif spam_eval.get('action') == 'challenge':
+            # Challenge: press 1 to continue
+            logger.info(f"Challenging call {call_sid} from {from_number}: {spam_eval.get('reason')}")
+            call_sessions[call_sid] = {
+                'phone': from_number,
+                'step': 'spam_challenge',
+                'data': {},
+                'customer': None,
+                'spam_eval': spam_eval,
+                'spam_attempts': 0
+            }
+            gather = _make_gather(input_types='dtmf speech', action='/voice/process', method='POST', timeout=5, speech_timeout='auto', finish_on_key='0')
+            gather.say("To continue, please press 1 or say one.", voice='Polly.Joanna')
+            response.append(gather)
+            # Fallback
+            response.say("I didn't catch that. Goodbye.", voice='Polly.Joanna')
+            response.hangup()
+            return str(response)
+    except Exception as e:
+        logger.error(f"Spam check error: {e}")
     
     # Check if returning customer
     customer = booking_service.get_customer_by_phone(from_number)
@@ -278,7 +310,9 @@ def process_speech():
             return str(response)
 
     # Handle conversation flow
-    if current_step == 'greeting':
+    if current_step == 'spam_challenge':
+        return handle_spam_challenge(call_sid, speech_result, response)
+    elif current_step == 'greeting':
         return handle_greeting(call_sid, speech_result, response)
     elif current_step == 'collect_name':
         return handle_name(call_sid, speech_result, response)
@@ -785,6 +819,38 @@ def transfer_call():
     response = VoiceResponse()
     response.say("Transferring you now. Please hold.", voice='Polly.Joanna')
     response.dial('+18327999276')
+    return str(response)
+
+def handle_spam_challenge(call_sid, speech_result, response):
+    """Verify spam challenge before proceeding."""
+    session = call_sessions.get(call_sid, {})
+    # Accept DTMF '1' or speech '1'/'one'/'yes'
+    raw_digits = request.values.get('Digits') or ''
+    accepted = False
+    if str(raw_digits).strip() == '1':
+        accepted = True
+    else:
+        txt = (speech_result or '').strip().lower()
+        if txt in {'1', 'one', 'yes', 'yeah', 'yep'}:
+            accepted = True
+    if accepted:
+        # Proceed to normal greeting flow
+        session['step'] = 'greeting'
+        call_sessions[call_sid] = session
+        response.say("Thank you.", voice='Polly.Joanna')
+        return handle_greeting(call_sid, '', response)
+    # Increment attempts and hang up after one retry
+    attempts = int(session.get('spam_attempts', 0)) + 1
+    session['spam_attempts'] = attempts
+    call_sessions[call_sid] = session
+    if attempts >= 1:
+        response.say("We could not verify your request. Goodbye.", voice='Polly.Joanna')
+        response.hangup()
+        return str(response)
+    # Reprompt (not likely hit due to fallback)
+    gather = _make_gather(input_types='dtmf speech', action='/voice/process', method='POST', timeout=5, speech_timeout='auto', finish_on_key='0')
+    gather.say("Please press 1 to continue.", voice='Polly.Joanna')
+    response.append(gather)
     return str(response)
 @app.route('/outbound/lead', methods=['POST'])
 def handle_outbound_lead():
