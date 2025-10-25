@@ -364,6 +364,8 @@ def process_speech():
         return twiml_response
     elif current_step == 'confirm_time':
         return handle_confirm_time(call_sid, speech_result, response)
+    elif current_step == 'confirm_requested_time':
+        return conv_handlers.handle_confirm_requested_time(call_sid, speech_result, response)
     elif current_step == 'collect_packing':
         return handle_packing(call_sid, speech_result, response)
     elif current_step == 'collect_special_items':

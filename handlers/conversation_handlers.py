@@ -518,16 +518,16 @@ def handle_time(call_sid, speech_result, response):
     try:
         session = call_sessions[call_sid]
         preferred_time = validation_service.validate_time(speech_result)
-        session['data']['move_time'] = preferred_time
-        logger.info(f"Call {call_sid} - Time validated: {preferred_time}")
+        session['data']['move_time_requested'] = preferred_time
+        logger.info(f"Call {call_sid} - Time parsed from user: {preferred_time}")
 
-        # Immediate keep-alive response to avoid Twilio timeout
-        response.say("Thank you. Please hold a moment while I check availability for your preferred time.", voice='Polly.Joanna')
-        response.pause(length=1)
-        response.say("I'm checking the schedule now. This will just take a few seconds.", voice='Polly.Joanna')
-        base_url = request.url_root.rstrip('/').replace('https://', 'http://')
-        response.redirect(f"{base_url}/voice/check_time", method='POST')
-        return str(response)
+        # Confirm the recognized time before checking availability
+        session['step'] = 'confirm_requested_time'
+        msg = (
+            f"You said {preferred_time}. Is that correct? "
+            "You can say yes or no, or press 1 for yes and 2 for no."
+        )
+        return gather_speech(response, msg)
 
     except Exception as e:
         logger.error(f"Call {call_sid} - Error in handle_time: {e}", exc_info=True)
@@ -681,6 +681,35 @@ def handle_packing(call_sid, speech_result, response):
     
     message = "Understood. Do you have any special items like a piano, safe, or other large items that need extra care?"
     return gather_speech(response, message)
+
+def handle_confirm_requested_time(call_sid, speech_result, response):
+    """Confirm the user's requested time, then proceed to availability check or re-ask."""
+    session = call_sessions[call_sid]
+    answer = validation_service.validate_yes_no(speech_result or '')
+    requested = session['data'].get('move_time_requested')
+    if answer == 'yes' and requested:
+        # Lock in the requested time and proceed to availability pipeline
+        session['data']['move_time'] = requested
+        # Keep the same behavior as original handle_time (keep-alives + redirect)
+        response.say("Thank you. Please hold a moment while I check availability for your preferred time.", voice='Polly.Joanna')
+        response.pause(length=1)
+        response.say("I'm checking the schedule now. This will just take a few seconds.", voice='Polly.Joanna')
+        base_url = request.url_root.rstrip('/').replace('https://', 'http://')
+        response.redirect(f"{base_url}/voice/check_time", method='POST')
+        return str(response)
+    elif answer == 'no':
+        # Ask again for time preference
+        session['step'] = 'collect_time'
+        message = "No problem. What time would you prefer? You can say morning, afternoon, evening, a specific time, or flexible."
+        return gather_speech(response, message)
+    else:
+        # Re-prompt the confirmation
+        session['step'] = 'confirm_requested_time'
+        message = (
+            f"To confirm, your preferred time is {requested}. "
+            "Is that correct? You can say yes or no, or press 1 for yes and 2 for no."
+        )
+        return gather_speech(response, message)
 
 def handle_confirm_time(call_sid, speech_result, response):
     """Confirm the selected move time before proceeding."""
